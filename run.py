@@ -49,12 +49,13 @@ class CarParkInfo(db.Model):
 
     @staticmethod
     def convert_coords_3414_to_4326(lat, long):
-        API_LINK = f"https://developers.onemap.sg/commonapi/convert/3414to4326"
+        API_LINK = "https://developers.onemap.sg/commonapi/convert/3414to4326"
         params = {'X': lat, 'Y': long}
         response = requests.get(API_LINK, params=params)
-        data = json.loads(response.text)
-        print(f"success {lat, long}")
-        return data['latitude'], data['longitude']
+
+        if response.status_code == 200:
+            data = json.loads(response.text)
+            return data['latitude'], data['longitude']
 
     @staticmethod
     def get(carpark_number):
@@ -91,7 +92,7 @@ class CarParkInfo(db.Model):
             for record in carpark_info['result']['records']:
                 # Check if record is already in database
                 try:
-                    # Convert first
+                    # Convert the coordinates to WGS84
                     wgs84_coords = CarParkInfo.convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
 
                     # Record does not exist
@@ -102,31 +103,37 @@ class CarParkInfo(db.Model):
                                              x_coord_WGS84=wgs84_coords[0],
                                              y_coord_WGS84=wgs84_coords[1],
                                              carpark_type=record['car_park_type'],
-                                             electronic_parking_system=1 if record['type_of_parking_system'] == "ELECTRONIC PARKING" else 0,
+                                             electronic_parking_system=True if record['type_of_parking_system'] == "ELECTRONIC PARKING" else False,
                                              short_term_parking=record['short_term_parking'],
                                              free_parking=record['free_parking'],
-                                             night_parking=1 if record['night_parking'] == "YES" else 0,
+                                             night_parking=True if record['night_parking'] == "YES" else False,
                                              carpark_deck_number=record['car_park_decks'],
                                              gantry_height=record['gantry_height'],
-                                             carpark_basement=1 if record['car_park_basement'] == "Y" else 0
+                                             carpark_basement=True if record['car_park_basement'] == "Y" else False
                                              )
                     new_record.save()
                 except exc.IntegrityError as e:
                     db.session.rollback()
                     # Record already exists
                     # Check if record is different
+                    # Convert the coordinates to WGS84
+                    wgs84_coords = CarParkInfo.convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
+
+                    # Record does not exist
                     new_record = CarParkInfo(carpark_number=record['car_park_no'],
                                              address=record['address'],
-                                             x_coord=record['x_coord'],
-                                             y_coord=record['y_coord'],
+                                             x_coord_EPSG3414=record['x_coord'],
+                                             y_coord_EPSG3414=record['y_coord'],
+                                             x_coord_WGS84=wgs84_coords[0],
+                                             y_coord_WGS84=wgs84_coords[1],
                                              carpark_type=record['car_park_type'],
-                                             electronic_parking_system=1 if record['type_of_parking_system'] == "ELECTRONIC PARKING" else 0,
+                                             electronic_parking_system=True if record['type_of_parking_system'] == "ELECTRONIC PARKING" else False,
                                              short_term_parking=record['short_term_parking'],
                                              free_parking=record['free_parking'],
-                                             night_parking=1 if record['night_parking'] == "YES" else 0,
+                                             night_parking=True if record['night_parking'] == "YES" else False,
                                              carpark_deck_number=record['car_park_decks'],
                                              gantry_height=record['gantry_height'],
-                                             carpark_basement=1 if record['car_park_basement'] == "Y" else 0
+                                             carpark_basement=True if record['car_park_basement'] == "Y" else False
                                              )
                     if (existing_record := CarParkInfo.get(record['car_park_no'])) != new_record:
                         # Record is different
@@ -330,36 +337,25 @@ def short_term_parking_HDB_heavy(time_to_from, eps):
     return total_cost
 
 
-
-def get_top_carparks(xy_coords):
+def get_top_carparks(latitude, longitude, limit=5):
     from geopy import distance
     # 2 ways to get top carpark
     # 1. Get top matches via Google Maps API
     # 2. Get top matches via distance calculation in xy_coords, Distance squared = x squared + y squared
 
+    # Try Second method
     # Get all carparks locations
     records = CarParkInfo.get_all()
 
     # Calculate distance
     distance_dict = {}
     for record in records:
-        distance_dict[record.carpark_number] = {
-            'x_coord': record.x_coord_EPSG3414,
-            'y_coord': record.y_coord_EPSG3414,
-            'x_coord_WGS84': record.x_coord_WGS84,
-            'y_coord_WGS84': record.y_coord_WGS84,
-            'distance': distance.distance(xy_coords, (record.x_coord_WGS84, record.y_coord_WGS84)).km
-        }
+        distance_dict[record.carpark_number] = distance.distance((latitude, longitude), (record.x_coord_WGS84, record.y_coord_WGS84)).km
 
     # Sort by distance
-    distance_dict = {k: v for k, v in sorted(distance_dict.items(), key=lambda item: item[1]['distance'])}
+    distance_dict = {k: v for k, v in sorted(distance_dict.items(), key=lambda item: item[1])}
 
-    return dict(list(distance_dict.items())[:5])
-    #
-    # for record in records:
-    #     print(record.carpark_number)
-
-    #distance_squared =
+    return dict(list(distance_dict.items())[:limit])
 
 
 if __name__ == '__main__':
@@ -369,7 +365,7 @@ if __name__ == '__main__':
 
 
     xy_coords = (1.3599598294961113, 103.93624551183646)
-    sorted_carparks = get_top_carparks(xy_coords)
+    sorted_carparks = get_top_carparks(xy_coords[0], xy_coords[1], 5)
     for key, val in sorted_carparks.items():
         print(key)
         print(CarParkInfo.get(key).address)
