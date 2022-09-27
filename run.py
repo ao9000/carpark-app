@@ -18,8 +18,10 @@ class CarParkInfo(db.Model):
     __tablename__ = 'carparkinfo'
     carpark_number = db.Column(db.String(4), primary_key=True)
     address = db.Column(db.String(255), nullable=False)
-    x_coord = db.Column(db.Float, nullable=False)
-    y_coord = db.Column(db.Float, nullable=False)
+    x_coord_EPSG3414 = db.Column(db.Float, nullable=False)
+    y_coord_EPSG3414 = db.Column(db.Float, nullable=False)
+    x_coord_WGS84 = db.Column(db.Float, nullable=False)
+    y_coord_WGS84 = db.Column(db.Float, nullable=False)
     carpark_type = db.Column(db.String(50), nullable=False)
     electronic_parking_system = db.Column(db.Boolean, nullable=False)
     short_term_parking = db.Column(db.String(255), nullable=False)
@@ -44,6 +46,15 @@ class CarParkInfo(db.Model):
     def save(self):
         db.session.add(self)
         db.session.commit()
+
+    @staticmethod
+    def convert_coords_3414_to_4326(lat, long):
+        API_LINK = f"https://developers.onemap.sg/commonapi/convert/3414to4326"
+        params = {'X': lat, 'Y': long}
+        response = requests.get(API_LINK, params=params)
+        data = json.loads(response.text)
+        print(f"success {lat, long}")
+        return data['latitude'], data['longitude']
 
     @staticmethod
     def get(carpark_number):
@@ -80,11 +91,16 @@ class CarParkInfo(db.Model):
             for record in carpark_info['result']['records']:
                 # Check if record is already in database
                 try:
+                    # Convert first
+                    wgs84_coords = CarParkInfo.convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
+
                     # Record does not exist
                     new_record = CarParkInfo(carpark_number=record['car_park_no'],
                                              address=record['address'],
-                                             x_coord=record['x_coord'],
-                                             y_coord=record['y_coord'],
+                                             x_coord_EPSG3414=record['x_coord'],
+                                             y_coord_EPSG3414=record['y_coord'],
+                                             x_coord_WGS84=wgs84_coords[0],
+                                             y_coord_WGS84=wgs84_coords[1],
                                              carpark_type=record['car_park_type'],
                                              electronic_parking_system=1 if record['type_of_parking_system'] == "ELECTRONIC PARKING" else 0,
                                              short_term_parking=record['short_term_parking'],
@@ -314,28 +330,49 @@ def short_term_parking_HDB_heavy(time_to_from, eps):
     return total_cost
 
 
+
 def get_top_carparks(xy_coords):
+    from geopy import distance
     # 2 ways to get top carpark
     # 1. Get top matches via Google Maps API
     # 2. Get top matches via distance calculation in xy_coords, Distance squared = x squared + y squared
 
     # Get all carparks locations
-    data = CarParkInfo.get_all()
+    records = CarParkInfo.get_all()
 
-    print(data)
+    # Calculate distance
+    distance_dict = {}
+    for record in records:
+        distance_dict[record.carpark_number] = {
+            'x_coord': record.x_coord_EPSG3414,
+            'y_coord': record.y_coord_EPSG3414,
+            'x_coord_WGS84': record.x_coord_WGS84,
+            'y_coord_WGS84': record.y_coord_WGS84,
+            'distance': distance.distance(xy_coords, (record.x_coord_WGS84, record.y_coord_WGS84)).km
+        }
+
+    # Sort by distance
+    distance_dict = {k: v for k, v in sorted(distance_dict.items(), key=lambda item: item[1]['distance'])}
+
+    return dict(list(distance_dict.items())[:5])
+    #
+    # for record in records:
+    #     print(record.carpark_number)
 
     #distance_squared =
 
 
-
-
 if __name__ == '__main__':
-    db.create_all()
-    CarParkInfo.update_table()
-    CarParkAvailability.update_table()
+    # db.create_all()
+    # CarParkInfo.update_table()
+    #CarParkAvailability.update_table()
 
-    # xy_coords = (1.3601025254633325, 103.936328551415)
-    # print(get_top_carparks(xy_coords))
+
+    xy_coords = (1.3599598294961113, 103.93624551183646)
+    sorted_carparks = get_top_carparks(xy_coords)
+    for key, val in sorted_carparks.items():
+        print(key)
+        print(CarParkInfo.get(key).address)
 
     # app.run(debug=True)
 
