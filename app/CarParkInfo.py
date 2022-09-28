@@ -5,7 +5,7 @@ from sqlalchemy import exc
 
 
 class CarParkInfo(db.Model):
-    __tablename__ = 'carparkinfo'
+    __tablename__ = 'CarParkInfo'
     carpark_number = db.Column(db.String(4), primary_key=True)
     address = db.Column(db.String(255), nullable=False)
     x_coord_EPSG3414 = db.Column(db.Float, nullable=False)
@@ -20,7 +20,7 @@ class CarParkInfo(db.Model):
     carpark_deck_number = db.Column(db.Integer, nullable=False)
     gantry_height = db.Column(db.Float(255), nullable=True)
     carpark_basement = db.Column(db.Boolean, nullable=False)
-    avabilities = db.relationship('CarParkAvailability', backref='carparkinfo', lazy=True)
+    avabilities = db.relationship('CarParkAvailability', backref='CarParkInfo', lazy=True)
 
     def __eq__(self, other_instance):
         a = self.__dict__
@@ -29,8 +29,9 @@ class CarParkInfo(db.Model):
         for key, value in a.items():
             if key == '_sa_instance_state':
                 continue
-            if value != b[key]:
-                return False
+            if isinstance(value, str):
+                if value != b[key]:
+                    return False
         return True
 
     def save(self):
@@ -38,14 +39,14 @@ class CarParkInfo(db.Model):
         db.session.commit()
 
     @staticmethod
-    def convert_coords_3414_to_4326(lat, long):
+    def convert_coords_3414_to_4326(latitude, longitude):
         API_LINK = "https://developers.onemap.sg/commonapi/convert/3414to4326"
-        params = {'X': lat, 'Y': long}
+        params = {'X': latitude, 'Y': longitude}
         response = requests.get(API_LINK, params=params)
 
         if response.status_code == 200:
             data = json.loads(response.text)
-            return data['latitude'], data['longitude']
+            return float(data['latitude']), float(data['longitude'])
 
     @staticmethod
     def get(carpark_number):
@@ -57,19 +58,7 @@ class CarParkInfo(db.Model):
 
     @staticmethod
     def update(existing_record, new_record):
-        existing_record.address = new_record.address
-        existing_record.x_coord_EPSG3414 = new_record.x_coord_EPSG3414
-        existing_record.y_coord_EPSG3414 = new_record.y_coord_EPSG3414
-        existing_record.x_coord_WGS84 = new_record.x_coord_WGS84
-        existing_record.y_coord_WGS84 = new_record.y_coord_WGS84
-        existing_record.carpark_type = new_record.carpark_type
-        existing_record.electronic_parking_system = new_record.electronic_parking_system
-        existing_record.short_term_parking = new_record.short_term_parking
-        existing_record.free_parking = new_record.free_parking
-        existing_record.night_parking = new_record.night_parking
-        existing_record.carpark_deck_number = new_record.carpark_deck_number
-        existing_record.gantry_height = new_record.gantry_height
-        existing_record.carpark_basement = new_record.carpark_basement
+        existing_record.__dict__ = new_record.__dict__
 
         db.session.commit()
 
@@ -81,54 +70,39 @@ class CarParkInfo(db.Model):
         if response.status_code == 200:
             carpark_info = json.loads(response.text)
 
-            for record in carpark_info['result']['records']:
-                # Check if record is already in database
+            for index, record in enumerate(carpark_info['result']['records'], start=1):
+                # Create CarParkInfo Object
+                # Convert the coordinates to WGS84
+                wgs84_coords = CarParkInfo.convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
+
+                # Record does not exist
+                new_record = CarParkInfo(carpark_number=record['car_park_no'],
+                                         address=record['address'],
+                                         x_coord_EPSG3414=record['x_coord'],
+                                         y_coord_EPSG3414=record['y_coord'],
+                                         x_coord_WGS84=wgs84_coords[0],
+                                         y_coord_WGS84=wgs84_coords[1],
+                                         carpark_type=record['car_park_type'],
+                                         electronic_parking_system=True if record['type_of_parking_system'] == "ELECTRONIC PARKING" else False,
+                                         short_term_parking=record['short_term_parking'],
+                                         free_parking=record['free_parking'],
+                                         night_parking=True if record['night_parking'] == "YES" else False,
+                                         carpark_deck_number=record['car_park_decks'],
+                                         gantry_height=record['gantry_height'],
+                                         carpark_basement=True if record['car_park_basement'] == "Y" else False
+                                         )
+
+                # Try to insert into db
                 try:
-                    # Convert the coordinates to WGS84
-                    wgs84_coords = CarParkInfo.convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
-
-                    # Record does not exist
-                    new_record = CarParkInfo(carpark_number=record['car_park_no'],
-                                             address=record['address'],
-                                             x_coord_EPSG3414=record['x_coord'],
-                                             y_coord_EPSG3414=record['y_coord'],
-                                             x_coord_WGS84=wgs84_coords[0],
-                                             y_coord_WGS84=wgs84_coords[1],
-                                             carpark_type=record['car_park_type'],
-                                             electronic_parking_system=True if record['type_of_parking_system'] == "ELECTRONIC PARKING" else False,
-                                             short_term_parking=record['short_term_parking'],
-                                             free_parking=record['free_parking'],
-                                             night_parking=True if record['night_parking'] == "YES" else False,
-                                             carpark_deck_number=record['car_park_decks'],
-                                             gantry_height=record['gantry_height'],
-                                             carpark_basement=True if record['car_park_basement'] == "Y" else False
-                                             )
                     new_record.save()
+                    print(f"CarParkInfo: New record {index}/{len(carpark_info['result']['records'])}")
                 except exc.IntegrityError as e:
+                    # Duplicated record, check if the existing record is the same
+                    # Rollback first
                     db.session.rollback()
-                    # Record already exists
-                    # Check if record is different
-                    # Convert the coordinates to WGS84
-                    wgs84_coords = CarParkInfo.convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
 
-                    # Record does not exist
-                    new_record = CarParkInfo(carpark_number=record['car_park_no'],
-                                             address=record['address'],
-                                             x_coord_EPSG3414=record['x_coord'],
-                                             y_coord_EPSG3414=record['y_coord'],
-                                             x_coord_WGS84=wgs84_coords[0],
-                                             y_coord_WGS84=wgs84_coords[1],
-                                             carpark_type=record['car_park_type'],
-                                             electronic_parking_system=True if record['type_of_parking_system'] == "ELECTRONIC PARKING" else False,
-                                             short_term_parking=record['short_term_parking'],
-                                             free_parking=record['free_parking'],
-                                             night_parking=True if record['night_parking'] == "YES" else False,
-                                             carpark_deck_number=record['car_park_decks'],
-                                             gantry_height=record['gantry_height'],
-                                             carpark_basement=True if record['car_park_basement'] == "Y" else False
-                                             )
+                    # Check if record is different
                     if (existing_record := CarParkInfo.get(record['car_park_no'])) != new_record:
-                        # Record is different
-                        # Update record
+                        # Record is different, Update record. Else do nothing
+                        print(f"CarParkInfo: Updating record {index}/{len(carpark_info['result']['records'])}")
                         CarParkInfo.update(existing_record, new_record)
-                        print(f"{existing_record.carpark_number} is updated")

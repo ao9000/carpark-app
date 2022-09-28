@@ -171,7 +171,7 @@ def create_app():
 
         return total_cost
 
-    def get_top_carparks(latitude, longitude, limit=5):
+    def get_nearest_carparks(latitude, longitude, limit=5):
         from geopy import distance
         # 2 ways to get top carpark
         # 1. Get top matches via Google Maps API
@@ -190,5 +190,33 @@ def create_app():
         distance_dict = {k: v for k, v in sorted(distance_dict.items(), key=lambda item: item[1])}
 
         return dict(list(distance_dict.items())[:limit])
+    #
+    # @app.route("/top_carparks", methods=["GET"])
+    # def return_top_carparks():
+    #     return "Hello, World!"
+
+    # Init tables with data
+    print("Creating tables & updating data...")
+    with app.app_context():
+        db.create_all()
+        CarParkInfo.update_table()
+        CarParkAvailability.update_table()
+
+    # time_range = ("2021-03-01T07:00", "2021-03-02T07:00")
+    # print(short_term_parking_HDB_car(time_range, "ACB", True))
+    # print(short_term_parking_HDB_car(time_range, "ACB", False))
+    #
+    # time_range = ("2021-03-01T07:00", "2021-03-02T07:00")
+    # print(short_term_parking_HDB_motorbike(time_range))
+    #
+    # time_range = ("2021-03-01T07:00", "2021-03-02T07:00")
+    # print(short_term_parking_HDB_heavy(time_range, True))
+
+
+    # xy_coords = (1.3599598294961113, 103.93624551183646)
+    # sorted_carparks = get_top_carparks(xy_coords[0], xy_coords[1], 5)
+    # for key, val in sorted_carparks.items():
+    #     print(key)
+    #     print(CarParkInfo.get(key).address)
 
     return app
