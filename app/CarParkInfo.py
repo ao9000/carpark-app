@@ -27,12 +27,20 @@ class CarParkInfo(db.Model):
         b = other_instance.__dict__
 
         for key, value in a.items():
-            if key == '_sa_instance_state':
+            if key.startswith('_sa'):
                 continue
             if isinstance(value, str):
                 if value != b[key]:
                     return False
         return True
+
+    def to_dict(self):
+        obj = {}
+        for key, value in self.__dict__.items():
+            if not str(key).startswith('_sa'):
+                obj[key] = value
+
+        return obj
 
     def save(self):
         db.session.add(self)
@@ -71,6 +79,7 @@ class CarParkInfo(db.Model):
             carpark_info = json.loads(response.text)
 
             for index, record in enumerate(carpark_info['result']['records'], start=1):
+                print(f"CarParkInfo: Processing record {index}/{len(carpark_info['result']['records'])}")
                 # Create CarParkInfo Object
                 # Convert the coordinates to WGS84
                 wgs84_coords = CarParkInfo.convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
@@ -95,7 +104,6 @@ class CarParkInfo(db.Model):
                 # Try to insert into db
                 try:
                     new_record.save()
-                    print(f"CarParkInfo: New record {index}/{len(carpark_info['result']['records'])}")
                 except exc.IntegrityError as e:
                     # Duplicated record, check if the existing record is the same
                     # Rollback first
@@ -104,5 +112,4 @@ class CarParkInfo(db.Model):
                     # Check if record is different
                     if (existing_record := CarParkInfo.get(record['car_park_no'])) != new_record:
                         # Record is different, Update record. Else do nothing
-                        print(f"CarParkInfo: Updating record {index}/{len(carpark_info['result']['records'])}")
                         CarParkInfo.update(existing_record, new_record)

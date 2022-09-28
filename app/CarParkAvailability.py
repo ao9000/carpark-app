@@ -18,8 +18,8 @@ class CarParkAvailability(db.Model):
         db.session.commit()
 
     @staticmethod
-    def get(row_id):
-        return CarParkAvailability.query.filter_by(id=row_id).first()
+    def get_all(carpark_number):
+        return CarParkAvailability.query.filter_by(carpark_number=carpark_number).all()
 
     @staticmethod
     def update_table():
@@ -30,6 +30,7 @@ class CarParkAvailability(db.Model):
             carpark_availability = json.loads(response.text)
 
             for index, record in enumerate(carpark_availability['items'][0]['carpark_data'], start=1):
+                print(f"CarParkAvailability: Processing record {index}/{len(carpark_availability['items'][0]['carpark_data'])}")
                 # Create CarParkAvailability object
                 new_record = CarParkAvailability(id=f"{record['carpark_number']} {record['update_datetime']}",
                                                  carpark_number=record['carpark_number'],
@@ -40,7 +41,6 @@ class CarParkAvailability(db.Model):
                 # Try to save the record
                 try:
                     new_record.save()
-                    print(f"CarParkAvailability: New record {index}/{len(carpark_availability['items'][0]['carpark_data'])}")
                 except exc.IntegrityError as e:
                     # Duplicate record exists, rollback and move on
                     # Duplicated record is confirmed to be the same, therefore no need check
