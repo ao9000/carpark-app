@@ -240,7 +240,11 @@ def create_app():
                 'availability': {item.timestamp.strftime("%m/%d/%Y, %H:%M:%S"): item.lots_available for item in carpark_availability}
             }
 
-        return jsonify(response_dict)
+        return jsonify(response_dict), 200
+
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return "Invalid route", 404
 
     # Create all required tables
     with app.app_context():
