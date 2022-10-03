@@ -19,7 +19,11 @@ class CarParkAvailability(db.Model):
 
     @staticmethod
     def get_all(carpark_number):
-        return CarParkAvailability.query.filter_by(carpark_number=carpark_number).all()
+        results = CarParkAvailability.query.filter_by(carpark_number=carpark_number).all()
+        if results:
+            return results
+        else:
+            return []
 
     @staticmethod
     def update_table():

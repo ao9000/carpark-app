@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta, time
 import math
 from flask_apscheduler import APScheduler
+from geopy import distance
 
 db = SQLAlchemy()
 
@@ -36,13 +37,12 @@ def create_app():
             db.create_all()
             CarParkAvailability.update_table()
 
-    def short_term_parking_HDB_car(time_to_from, carpark_number, eps):
+    def short_term_parking_HDB_car(from_time_to_time, carpark_number, eps):
         # Fare Source: https://www.hdb.gov.sg/car-parks/shortterm-parking/short-term-parking-charges
         # EPS Source: https://www.hdb.gov.sg/car-parks/shortterm-parking/electronic-parking
 
-        # Convert into datetime objects
-        from_time = datetime.strptime(time_to_from[0], "%Y-%m-%dT%H:%M")
-        to_time = datetime.strptime(time_to_from[1], "%Y-%m-%dT%H:%M")
+        # Unpack
+        from_time, to_time = from_time_to_time
 
         # Get total time in minutes/half-hours first
         total_minutes = (to_time - from_time).total_seconds() / 60
@@ -113,13 +113,13 @@ def create_app():
 
         return total_cost
 
-    def short_term_parking_HDB_motorbike(time_to_from):
+    def short_term_parking_HDB_motorbike(from_time_to_time):
         # Fare source: https://www.hdb.gov.sg/car-parks/shortterm-parking/short-term-parking-charges
         # $0.65 per lot for whole day (7:00am to 10:30pm) or whole night (10.30pm to 7.00am)
 
-        # Convert into datetime objects
-        from_time = datetime.strptime(time_to_from[0], "%Y-%m-%dT%H:%M")
-        to_time = datetime.strptime(time_to_from[1], "%Y-%m-%dT%H:%M")-timedelta(minutes=1)
+        # Unpack
+        from_time, to_time = from_time_to_time
+        to_time -= timedelta(minutes=1)
 
         # Get total time in minutes first
         total_minutes = (to_time - from_time).total_seconds() / 60
@@ -166,13 +166,12 @@ def create_app():
 
         return round(total_cost, 2)
 
-    def short_term_parking_HDB_heavy(time_to_from, eps):
+    def short_term_parking_HDB_heavy(from_time_to_time, eps):
         # Fare source: https://www.hdb.gov.sg/car-parks/shortterm-parking/short-term-parking-charges
         # $1.20 per half hour
 
-        # Convert into datetime objects
-        from_time = datetime.strptime(time_to_from[0], "%Y-%m-%dT%H:%M")
-        to_time = datetime.strptime(time_to_from[1], "%Y-%m-%dT%H:%M")
+        # Unpack
+        from_time, to_time = from_time_to_time
 
         # Get total time in minutes first
         total_minutes = (to_time - from_time).total_seconds() / 60
@@ -190,8 +189,18 @@ def create_app():
 
         return total_cost
 
+    def parking_fare_calculation(short_or_long_term, vehicle_type):
+        func_mapper_dict = {
+            'short_term': {
+                'car': short_term_parking_HDB_car,
+                'motorbike': short_term_parking_HDB_motorbike,
+                'heavy': short_term_parking_HDB_heavy,
+            }
+        }
+
+        return func_mapper_dict[short_or_long_term][vehicle_type]
+
     def get_nearest_carparks(latitude, longitude, limit=5):
-        from geopy import distance
         # 2 ways to get top carpark
         # 1. Get top matches via Google Maps API
         # 2. Get top matches via distance calculation in xy_coords, Distance squared = x squared + y squared
@@ -210,15 +219,60 @@ def create_app():
 
         return dict(list(sorted_distance_dict.items())[:limit])
 
-    @app.route("/carparks", methods=["GET"])
-    def return_top_carparks():
-        # Get route params
+    @app.route("/carparks/<string:vehicle_type>", methods=["GET"])
+    def return_top_carparks(vehicle_type):
+        # Carpark finding params
         x_coord = request.args.get('x_coord', default=None, type=float)
         y_coord = request.args.get('y_coord', default=None, type=float)
         limit = request.args.get('limit', default=5, type=int)
 
+        # Parking fare params
+        datetime_from = request.args.get('datetime_from', default=None, type=str)
+        datetime_to = request.args.get('datetime_to', default=None, type=str)
+        eps = request.args.get('eps', default=None, type=bool)
+
+        # Integrity check for carpark finding params
+        # Check if both x_coord and y_coord are present
+        if not x_coord or not y_coord:
+            return jsonify({'error': 'Please provide both x_coord and y_coord'}), 400
+
+        # Check if limit is valid
+        if limit < 1:
+            return jsonify({'error': 'Limit cannot be below 1'}), 400
+
+        # After performing checks, get top carparks results
         # Get the nearest carparks dict
         nearest_carparks = get_nearest_carparks(x_coord, y_coord, limit)
+
+        # Integrity check fare calculation params
+        if datetime_from and datetime_to and isinstance(eps, bool):
+            # Both datetime_from and datetime_to are present and eps is present
+            # Check if both are valid
+            try:
+                from_time = datetime.strptime(datetime_from, "%Y-%m-%dT%H:%M")
+                to_time = datetime.strptime(datetime_to, "%Y-%m-%dT%H:%M")
+            except ValueError:
+                return jsonify({"error": "Invalid datetime format"}), 400
+
+            # Check if datetime_from is later than datetime_to
+            if from_time > to_time:
+                return jsonify({"error": "datetime_from cannot be later than datetime_to"}), 400
+            # Check if datetime_from is equal to datetime_to
+            if from_time == to_time:
+                return jsonify({"error": "datetime_from cannot be equal to datetime_to"}), 400
+
+            # Calculate short term parking cost
+            # Check vehicle type
+            parking_fare = {}
+            for carpark_number in nearest_carparks.keys():
+                parking_fare[carpark_number] = parking_fare_calculation('short_term', vehicle_type)((from_time, to_time), carpark_number, eps)
+
+        elif datetime_from or datetime_to:
+            # One of datetime_from or datetime_to is present
+            return jsonify({"error": "Both datetime_from and datetime_to must be present"}), 400
+        else:
+            # Both datetime_from and datetime_to are not present, no fare calculation
+            parking_fare = {}
 
         # Construct response
         response_dict = {}
@@ -235,8 +289,9 @@ def create_app():
             # Combine data into response
             response_dict[key] = {
                 'distance': value,
+                'parking_fare': parking_fare[key],
                 **carpark_info.to_dict(),
-                'total_lots': carpark_availability[0].total_lots,
+                'total_lots': carpark_availability[0].total_lots if carpark_availability else None,
                 'availability': {item.timestamp.strftime("%m/%d/%Y, %H:%M:%S"): item.lots_available for item in carpark_availability}
             }
 
@@ -244,7 +299,7 @@ def create_app():
 
     @app.errorhandler(404)
     def page_not_found(e):
-        return "Invalid route", 404
+        return jsonify({"error": "Invalid route"}), 404
 
     # Create all required tables
     with app.app_context():
