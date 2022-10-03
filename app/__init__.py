@@ -189,12 +189,17 @@ def create_app():
 
         return total_cost
 
-    def parking_fare_calculation(short_or_long_term, vehicle_type):
+    def parking_fare_calculation(short_or_long_term, vehicle_type, **kwargs):
+        # Unpack **kwargs
+        from_time_to_time = kwargs['from_time_to_time']
+        carpark_number = kwargs['carpark_number']
+        eps = kwargs['eps']
+
         func_mapper_dict = {
             'short_term': {
-                'car': short_term_parking_HDB_car,
-                'motorbike': short_term_parking_HDB_motorbike,
-                'heavy': short_term_parking_HDB_heavy,
+                'car': short_term_parking_HDB_car(from_time_to_time, carpark_number, eps),
+                'motorbike': short_term_parking_HDB_motorbike(from_time_to_time),
+                'heavy': short_term_parking_HDB_heavy(from_time_to_time, eps),
             }
         }
 
@@ -265,7 +270,11 @@ def create_app():
             # Check vehicle type
             parking_fare = {}
             for carpark_number in nearest_carparks.keys():
-                parking_fare[carpark_number] = parking_fare_calculation('short_term', vehicle_type)((from_time, to_time), carpark_number, eps)
+                parking_fare[carpark_number] = parking_fare_calculation(short_or_long_term='short_term',
+                                                                        vehicle_type=vehicle_type,
+                                                                        from_time_to_time=(from_time, to_time),
+                                                                        carpark_number=carpark_number,
+                                                                        eps=eps)
 
         elif datetime_from or datetime_to:
             # One of datetime_from or datetime_to is present
