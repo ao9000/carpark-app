@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, time
 import math
 from flask_apscheduler import APScheduler
 from geopy import distance
+from enum import Enum
 
 db = SQLAlchemy()
 
@@ -189,6 +190,27 @@ def create_app():
 
         return total_cost
 
+    def long_term_parking_family_season_parking(carpark_number, vehicle_type):
+        # Source: https://www.hdb.gov.sg/car-parks/season-parking/family-season-parking-fsp/charges
+
+        # Get type of carpark from carpark number
+        carpark_type = CarParkInfo.get(carpark_number).carpark_type
+
+        # Normalize vehicle type
+        match carpark_type:
+            case 'COVERED CAR PARK' | 'BASEMENT CAR PARK' | 'MECHANISED CAR PARK' | 'MULTI-STOREY CAR PARK':
+                carpark_type = "sheltered"
+            case 'MECHANISED AND SURFACE CAR PARK' | 'SURFACE CAR PARK' | 'SURFACE/MULTI-STOREY CAR PARK':
+                carpark_type = "surface"
+
+        fare_dict = {
+            'car': {'surface': 40, 'sheltered': 55, 'precinct': 47.50},
+            'motorcycle': {'surface': 7.50, 'sheltered': 8.50, 'precinct': 8.50},
+            'commercial': {'surface': 92.50, 'sheltered': 92.50, 'precinct': 92.50}
+        }
+
+        return fare_dict[vehicle_type][carpark_type]
+
     def parking_fare_calculation(short_or_long_term, vehicle_type, **kwargs):
         # Unpack **kwargs
         from_time_to_time = kwargs['from_time_to_time']
@@ -276,9 +298,9 @@ def create_app():
                                                                         carpark_number=carpark_number,
                                                                         eps=eps)
 
-        elif datetime_from or datetime_to:
+        elif datetime_from or datetime_to or isinstance(eps, bool):
             # One of datetime_from or datetime_to is present
-            return jsonify({"error": "Both datetime_from and datetime_to must be present"}), 400
+            return jsonify({"error": "datetime_from, datetime_to and eps must be present together"}), 400
         else:
             # Both datetime_from and datetime_to are not present, no fare calculation
             parking_fare = {}
