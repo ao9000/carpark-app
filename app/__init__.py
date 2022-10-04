@@ -330,6 +330,35 @@ def create_app():
 
         return jsonify(response_dict), 200
 
+    @app.route("/carparks/all", methods=["GET"])
+    def return_all_carparks():
+        # Get all carparks
+        records = CarParkInfo.get_all()
+
+        # Construct response
+        response_dict = {}
+        # Loop through all carparks
+        for record in records:
+            # Get carpark availability from carpark number
+            carpark_availability = CarParkAvailability.get_all(record.carpark_number)
+
+            # Combine data into response
+            response_dict[record.carpark_number] = {
+                'short_term_parking_fare': {
+                    'car': CarParkInfo.get_short_term_carpark_rates()['car'][
+                        'central'] if record.carpark_number in CarParkInfo.get_central_carpark_numbers() else
+                    CarParkInfo.get_short_term_carpark_rates()['car']['non_central'],
+                    'motorbike': CarParkInfo.get_short_term_carpark_rates()['motorbike'],
+                    'heavy': CarParkInfo.get_short_term_carpark_rates()['heavy']
+                },
+                **record.to_dict(),
+                'total_lots': carpark_availability[0].total_lots if carpark_availability else None,
+                'availability': {item.timestamp.strftime("%m/%d/%Y, %H:%M:%S"): item.lots_available for item in
+                                 carpark_availability}
+            }
+
+        return jsonify(response_dict), 200
+
     @app.errorhandler(404)
     def page_not_found(e):
         return jsonify({"error": "Invalid route"}), 404
@@ -337,8 +366,6 @@ def create_app():
     # Create all required tables
     with app.app_context():
         db.create_all()
-        CarParkInfo.update_table()
-        CarParkAvailability.update_table()
 
     # time_range = ("2021-03-01T07:00", "2021-03-02T07:00")
     # print(short_term_parking_HDB_car(time_range, "ACB", True))
