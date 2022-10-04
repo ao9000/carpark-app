@@ -6,6 +6,27 @@ from sqlalchemy import exc
 
 class CarParkInfo(db.Model):
     __tablename__ = 'CarParkInfo'
+
+    # Constants
+    CENTRAL_CARPARK_NUMBERS = ['ACB', 'BBB', 'BRB1', 'CY', 'DUXM', 'HLM', 'KAB', 'KAM', 'KAS', 'PRM', 'SLS', 'SR1',
+                               'SR2', 'TPM', 'UCS', 'WCB']
+    # All rates are per half hour
+    FARE_RATE_DICT = {
+        'CAR': {
+            'CENTRAL': {
+                'PREMIUM_HOURS': 1.20,
+                'NON_PREMIUM_HOURS': 0.60
+            },
+            'NON-CENTRAL': 0.60
+        },
+        'MOTORBIKE': {
+            'WHOLE_DAY': 0.65,
+            'WHOLE_NIGHT': 0.65
+        },
+        'HEAVY': 1.20
+    }
+
+    # CarParkInfo Gov.sg API columns
     carpark_number = db.Column(db.String(4), primary_key=True)
     address = db.Column(db.String(255), nullable=False)
     x_coord_EPSG3414 = db.Column(db.Float, nullable=False)
@@ -20,7 +41,18 @@ class CarParkInfo(db.Model):
     carpark_deck_number = db.Column(db.Integer, nullable=False)
     gantry_height = db.Column(db.Float(255), nullable=True)
     carpark_basement = db.Column(db.Boolean, nullable=False)
+    # Relationship to CarParkAvailability
     avabilities = db.relationship('CarParkAvailability', backref='CarParkInfo', lazy=True)
+
+    # Additional tables
+    # Differentiate from public and private carparks
+    public_carpark = db.Column(db.Boolean, nullable=False)
+
+    # Parking fares for calculations
+    # Fares are per half hour
+    short_term_parking_car_fare = db.Column(db.Float, nullable=True)
+    short_term_parking_motorbike_fare = db.Column(db.Float, nullable=True)
+    short_term_parking_heavy_fare = db.Column(db.Float, nullable=True)
 
     def __eq__(self, other_instance):
         a = self.__dict__
@@ -45,6 +77,14 @@ class CarParkInfo(db.Model):
     def save(self):
         db.session.add(self)
         db.session.commit()
+
+    @staticmethod
+    def get_short_term_carpark_rates():
+        return CarParkInfo.FARE_RATE_DICT
+
+    @staticmethod
+    def get_central_carpark_numbers():
+        return CarParkInfo.CENTRAL_CARPARK_NUMBERS
 
     @staticmethod
     def convert_coords_3414_to_4326(latitude, longitude):
@@ -98,7 +138,10 @@ class CarParkInfo(db.Model):
                                          night_parking=True if record['night_parking'] == "YES" else False,
                                          carpark_deck_number=record['car_park_decks'],
                                          gantry_height=record['gantry_height'],
-                                         carpark_basement=True if record['car_park_basement'] == "Y" else False
+                                         carpark_basement=True if record['car_park_basement'] == "Y" else False,
+
+                                         # Additional columns
+                                         public_carpark=True
                                          )
 
                 # Try to insert into db

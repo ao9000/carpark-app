@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, time
 import math
 from flask_apscheduler import APScheduler
 from geopy import distance
-from enum import Enum
 
 db = SQLAlchemy()
 
@@ -80,7 +79,9 @@ def create_app():
         non_expensive_time_counter_minute = total_minutes - expensive_time_counter_minute
 
         # Check if night parking hit $5 quota
-        quota_minute = round((5 / 0.60) * 30, 0)
+        # Non-central and central non-premium times is same rate
+        # Therefore, night parking is always the same rate regardless of central or not
+        quota_minute = round((5 / CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['NON_PREMIUM_HOURS']) * 30, 0)
         if night_parking_counter_minute >= quota_minute:
             # Hit $5 quota
             total_cost = 5
@@ -91,26 +92,24 @@ def create_app():
             total_cost = 0
 
         # Calculate total cost
-        central_carpark_numbers = ['ACB', 'BBB', 'BRB1', 'CY', 'DUXM', 'HLM', 'KAB', 'KAM', 'KAS', 'PRM', 'SLS', 'SR1',
-                                   'SR2', 'TPM', 'UCS', 'WCB']
-        if carpark_number in central_carpark_numbers:
+        if carpark_number in CarParkInfo.get_central_carpark_numbers():
             # Central area
             if eps:
                 # Pro-rate every minute
-                total_cost += round(expensive_time_counter_minute * (1.20/30), 2)
-                total_cost += round(non_expensive_time_counter_minute * (0.60/30), 2)
+                total_cost += round(expensive_time_counter_minute * (CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['PREMIUM_HOURS']/30), 2)
+                total_cost += round(non_expensive_time_counter_minute * (CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['NON_PREMIUM_HOURS']/30), 2)
             else:
                 # Assume coupons, count only every half hour
-                total_cost += round(math.ceil(expensive_time_counter_minute / 30) * 1.20, 2)
-                total_cost += round(math.ceil(non_expensive_time_counter_minute / 30) * 0.60, 2)
+                total_cost += round(math.ceil(expensive_time_counter_minute / 30) * CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['PREMIUM_HOURS'], 2)
+                total_cost += round(math.ceil(non_expensive_time_counter_minute / 30) * CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['NON_PREMIUM_HOURS'], 2)
         else:
             # Non-central carpark, $0.60/1/2hr
             if eps:
                 # Pro-rate every minute
-                total_cost += round(total_minutes * (0.60/30), 2)
+                total_cost += round(total_minutes * (CarParkInfo.FARE_RATE_DICT['CAR']['NON_CENTRAL']/30), 2)
             else:
                 # Assume coupons, count only every half hour
-                total_cost += round(math.ceil(total_minutes / 30) * 0.60, 2)
+                total_cost += round(math.ceil(total_minutes / 30) * CarParkInfo.FARE_RATE_DICT['CAR']['NON_CENTRAL'], 2)
 
         return total_cost
 
@@ -146,23 +145,23 @@ def create_app():
                 if not day and not night:
                     # First day
                     day = True
-                    total_cost += 0.65
+                    total_cost += CarParkInfo.FARE_RATE_DICT['MOTORBIKE']['WHOLE_DAY']
                 elif not day:
                     # Check if new day
                     day = True
                     night = False
-                    total_cost += 0.65
+                    total_cost += CarParkInfo.FARE_RATE_DICT['MOTORBIKE']['WHOLE_DAY']
             elif datetime_now.time() >= night_time_range[0] or datetime_now.time() <= night_time_range[1]:
                 # Night
                 if not night and not day:
                     # First night
                     night = True
-                    total_cost += 0.65
+                    total_cost += CarParkInfo.FARE_RATE_DICT['MOTORBIKE']['WHOLE_NIGHT']
                 elif not night:
                     # Check if new night
                     day = False
                     night = True
-                    total_cost += 0.65
+                    total_cost += CarParkInfo.FARE_RATE_DICT['MOTORBIKE']['WHOLE_NIGHT']
             counter += 1
 
         return round(total_cost, 2)
@@ -183,10 +182,10 @@ def create_app():
 
         if eps:
             # Pro-rated per minute
-            total_cost = round(total_minutes * (1.20 / 30), 2)
+            total_cost = round(total_minutes * (CarParkInfo.FARE_RATE_DICT['HEAVY'] / 30), 2)
         else:
             # Assume coupons, count only every half hour
-            total_cost = round(math.ceil(total_minutes/30) * 1.20, 2)
+            total_cost = round(math.ceil(total_minutes/30) * CarParkInfo.FARE_RATE_DICT['HEAVY'], 2)
 
         return total_cost
 
@@ -320,7 +319,7 @@ def create_app():
             # Combine data into response
             response_dict[key] = {
                 'distance': value,
-                'parking_fare': parking_fare[key],
+                'parking_fare': parking_fare[key] if parking_fare else None,
                 **carpark_info.to_dict(),
                 'total_lots': carpark_availability[0].total_lots if carpark_availability else None,
                 'availability': {item.timestamp.strftime("%m/%d/%Y, %H:%M:%S"): item.lots_available for item in carpark_availability}
@@ -335,6 +334,8 @@ def create_app():
     # Create all required tables
     with app.app_context():
         db.create_all()
+        CarParkInfo.update_table()
+        CarParkAvailability.update_table()
 
     # time_range = ("2021-03-01T07:00", "2021-03-02T07:00")
     # print(short_term_parking_HDB_car(time_range, "ACB", True))
