@@ -12,18 +12,18 @@ class CarParkInfo(db.Model):
                                'SR2', 'TPM', 'UCS', 'WCB']
     # All rates are per half hour
     FARE_RATE_DICT = {
-        'CAR': {
-            'CENTRAL': {
-                'PREMIUM_HOURS': 1.20,
-                'NON_PREMIUM_HOURS': 0.60
+        'car': {
+            'central': {
+                'premium_hours': 1.20,
+                'non_premium_hours': 0.60
             },
-            'NON-CENTRAL': 0.60
+            'non_central': 0.60
         },
-        'MOTORBIKE': {
-            'WHOLE_DAY': 0.65,
-            'WHOLE_NIGHT': 0.65
+        'motorbike': {
+            'whole_day': 0.65,
+            'whole_night': 0.65
         },
-        'HEAVY': 1.20
+        'heavy': 1.20
     }
 
     # CarParkInfo Gov.sg API columns

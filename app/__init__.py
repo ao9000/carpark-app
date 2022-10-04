@@ -81,7 +81,7 @@ def create_app():
         # Check if night parking hit $5 quota
         # Non-central and central non-premium times is same rate
         # Therefore, night parking is always the same rate regardless of central or not
-        quota_minute = round((5 / CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['NON_PREMIUM_HOURS']) * 30, 0)
+        quota_minute = round((5 / CarParkInfo.get_short_term_carpark_rates()['car']['central']['non_premium_hours']) * 30, 0)
         if night_parking_counter_minute >= quota_minute:
             # Hit $5 quota
             total_cost = 5
@@ -96,20 +96,20 @@ def create_app():
             # Central area
             if eps:
                 # Pro-rate every minute
-                total_cost += round(expensive_time_counter_minute * (CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['PREMIUM_HOURS']/30), 2)
-                total_cost += round(non_expensive_time_counter_minute * (CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['NON_PREMIUM_HOURS']/30), 2)
+                total_cost += round(expensive_time_counter_minute * (CarParkInfo.get_short_term_carpark_rates()['car']['central']['premium_hours']/30), 2)
+                total_cost += round(non_expensive_time_counter_minute * (CarParkInfo.get_short_term_carpark_rates()['car']['central']['non_premium_hours']/30), 2)
             else:
                 # Assume coupons, count only every half hour
-                total_cost += round(math.ceil(expensive_time_counter_minute / 30) * CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['PREMIUM_HOURS'], 2)
-                total_cost += round(math.ceil(non_expensive_time_counter_minute / 30) * CarParkInfo.FARE_RATE_DICT['CAR']['CENTRAL']['NON_PREMIUM_HOURS'], 2)
+                total_cost += round(math.ceil(expensive_time_counter_minute / 30) * CarParkInfo.get_short_term_carpark_rates()['car']['central']['premium_hours'], 2)
+                total_cost += round(math.ceil(non_expensive_time_counter_minute / 30) * CarParkInfo.get_short_term_carpark_rates()['car']['central']['non_premium_hours'], 2)
         else:
             # Non-central carpark, $0.60/1/2hr
             if eps:
                 # Pro-rate every minute
-                total_cost += round(total_minutes * (CarParkInfo.FARE_RATE_DICT['CAR']['NON_CENTRAL']/30), 2)
+                total_cost += round(total_minutes * (CarParkInfo.get_short_term_carpark_rates()['car']['non_central']/30), 2)
             else:
                 # Assume coupons, count only every half hour
-                total_cost += round(math.ceil(total_minutes / 30) * CarParkInfo.FARE_RATE_DICT['CAR']['NON_CENTRAL'], 2)
+                total_cost += round(math.ceil(total_minutes / 30) * CarParkInfo.get_short_term_carpark_rates()['car']['non_central'], 2)
 
         return total_cost
 
@@ -145,23 +145,23 @@ def create_app():
                 if not day and not night:
                     # First day
                     day = True
-                    total_cost += CarParkInfo.FARE_RATE_DICT['MOTORBIKE']['WHOLE_DAY']
+                    total_cost += CarParkInfo.get_short_term_carpark_rates()['motorbike']['whole_day']
                 elif not day:
                     # Check if new day
                     day = True
                     night = False
-                    total_cost += CarParkInfo.FARE_RATE_DICT['MOTORBIKE']['WHOLE_DAY']
+                    total_cost += CarParkInfo.get_short_term_carpark_rates()['motorbike']['whole_day']
             elif datetime_now.time() >= night_time_range[0] or datetime_now.time() <= night_time_range[1]:
                 # Night
                 if not night and not day:
                     # First night
                     night = True
-                    total_cost += CarParkInfo.FARE_RATE_DICT['MOTORBIKE']['WHOLE_NIGHT']
+                    total_cost += CarParkInfo.get_short_term_carpark_rates()['motorbike']['whole_night']
                 elif not night:
                     # Check if new night
                     day = False
                     night = True
-                    total_cost += CarParkInfo.FARE_RATE_DICT['MOTORBIKE']['WHOLE_NIGHT']
+                    total_cost += CarParkInfo.get_short_term_carpark_rates()['motorbike']['whole_night']
             counter += 1
 
         return round(total_cost, 2)
@@ -182,10 +182,10 @@ def create_app():
 
         if eps:
             # Pro-rated per minute
-            total_cost = round(total_minutes * (CarParkInfo.FARE_RATE_DICT['HEAVY'] / 30), 2)
+            total_cost = round(total_minutes * (CarParkInfo.get_short_term_carpark_rates()['heavy'] / 30), 2)
         else:
             # Assume coupons, count only every half hour
-            total_cost = round(math.ceil(total_minutes/30) * CarParkInfo.FARE_RATE_DICT['HEAVY'], 2)
+            total_cost = round(math.ceil(total_minutes/30) * CarParkInfo.get_short_term_carpark_rates()['heavy'], 2)
 
         return total_cost
 
@@ -210,11 +210,12 @@ def create_app():
 
         return fare_dict[vehicle_type][carpark_type]
 
-    def parking_fare_calculation(short_or_long_term, vehicle_type, **kwargs):
+    def parking_fare_calculation(short_or_long_term, from_time_to_time, **kwargs):
         # Unpack **kwargs
-        from_time_to_time = kwargs['from_time_to_time']
         carpark_number = kwargs['carpark_number']
-        eps = kwargs['eps']
+
+        # Get db table for eps
+        eps = CarParkInfo.get(carpark_number).electronic_parking_system
 
         func_mapper_dict = {
             'short_term': {
@@ -224,7 +225,7 @@ def create_app():
             }
         }
 
-        return func_mapper_dict[short_or_long_term][vehicle_type]
+        return func_mapper_dict[short_or_long_term]
 
     def get_nearest_carparks(latitude, longitude, limit=5):
         # 2 ways to get top carpark
@@ -245,8 +246,8 @@ def create_app():
 
         return dict(list(sorted_distance_dict.items())[:limit])
 
-    @app.route("/carparks/<string:vehicle_type>", methods=["GET"])
-    def return_top_carparks(vehicle_type):
+    @app.route("/carparks", methods=["GET"])
+    def return_top_carparks():
         # Carpark finding params
         x_coord = request.args.get('x_coord', default=None, type=float)
         y_coord = request.args.get('y_coord', default=None, type=float)
@@ -255,7 +256,6 @@ def create_app():
         # Parking fare params
         datetime_from = request.args.get('datetime_from', default=None, type=str)
         datetime_to = request.args.get('datetime_to', default=None, type=str)
-        eps = request.args.get('eps', default=None, type=bool)
 
         # Integrity check for carpark finding params
         # Check if both x_coord and y_coord are present
@@ -271,7 +271,7 @@ def create_app():
         nearest_carparks = get_nearest_carparks(x_coord, y_coord, limit)
 
         # Integrity check fare calculation params
-        if datetime_from and datetime_to and isinstance(eps, bool):
+        if datetime_from and datetime_to:
             # Both datetime_from and datetime_to are present and eps is present
             # Check if both are valid
             try:
@@ -292,14 +292,12 @@ def create_app():
             parking_fare = {}
             for carpark_number in nearest_carparks.keys():
                 parking_fare[carpark_number] = parking_fare_calculation(short_or_long_term='short_term',
-                                                                        vehicle_type=vehicle_type,
                                                                         from_time_to_time=(from_time, to_time),
-                                                                        carpark_number=carpark_number,
-                                                                        eps=eps)
+                                                                        carpark_number=carpark_number)
 
-        elif datetime_from or datetime_to or isinstance(eps, bool):
+        elif datetime_from or datetime_to:
             # One of datetime_from or datetime_to is present
-            return jsonify({"error": "datetime_from, datetime_to and eps must be present together"}), 400
+            return jsonify({"error": "Both datetime_from and datetime_to must be present together"}), 400
         else:
             # Both datetime_from and datetime_to are not present, no fare calculation
             parking_fare = {}
@@ -319,6 +317,11 @@ def create_app():
             # Combine data into response
             response_dict[key] = {
                 'distance': value,
+                'short_term_parking_fare': {
+                    'car': CarParkInfo.get_short_term_carpark_rates()['car']['central'] if key in CarParkInfo.get_central_carpark_numbers() else CarParkInfo.get_short_term_carpark_rates()['car']['non_central'],
+                    'motorbike': CarParkInfo.get_short_term_carpark_rates()['motorbike'],
+                    'heavy': CarParkInfo.get_short_term_carpark_rates()['heavy']
+                },
                 'parking_fare': parking_fare[key] if parking_fare else None,
                 **carpark_info.to_dict(),
                 'total_lots': carpark_availability[0].total_lots if carpark_availability else None,
