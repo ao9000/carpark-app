@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, time
 import math
 from flask_apscheduler import APScheduler
 from geopy import distance
+import requests
+import json
 
 db = SQLAlchemy()
 
@@ -232,7 +234,60 @@ def create_app():
         # 1. Get top matches via Google Maps API
         # 2. Get top matches via distance calculation in xy_coords, Distance squared = x squared + y squared
 
-        # Try Second method
+        # Method 1: Google Maps API
+        # Google Maps API can allow collation of carpark coordinates to perform 1 API call for all carpark distances
+        # API_KEY = "API_KEY_HERE"
+        # API_LINK = f"https://maps.googleapis.com/maps/api/distancematrix/json?"
+        #
+        # # Therefore, collate all carpark coordinates first
+        # records = CarParkInfo.get_all()
+        #
+        # # Call API in groups of 20
+        # # Google API has a 2048 character limit for requests
+        # distance_dict = {}
+        # counter = 0
+        # carpark_numbers = []
+        # combined_destinations = ''
+        # for record in records:
+        #     counter+=1
+        #     carpark_numbers.append(record.carpark_number)
+        #     if combined_destinations == '':
+        #         combined_destinations += f"{record.x_coord_WGS84}%2C{record.y_coord_WGS84}"
+        #     else:
+        #         combined_destinations += f"%7C{record.x_coord_WGS84}%2C{record.y_coord_WGS84}"
+        #
+        #     if counter == 25:
+        #         params = {'key': API_KEY,
+        #                   'origins': f"{latitude}%2C{longitude}",
+        #                   'destinations': combined_destinations,
+        #                   'mode': 'walking'
+        #                   }
+        #
+        #         params_string = "&".join("%s=%s" % (k, v) for k, v in params.items())
+        #         response = requests.get(API_LINK, params=params_string)
+        #         if response.status_code == 200:
+        #             print("SENT API")
+        #             data = json.loads(response.text)
+        #
+        #             for index, item in enumerate(data['rows'][0]['elements'], start=0):
+        #                 distance_dict[carpark_numbers[index]] = item['distance']['value']
+        #
+        #         counter=0
+        #         combined_destinations = ''
+        #         carpark_numbers = []
+        #
+        # # Sort by distance
+        # sorted_distance_dict = {k: v for k, v in sorted(distance_dict.items(), key=lambda item: item[1], reverse=False)}
+        #
+        # return dict(list(sorted_distance_dict.items())[:limit])
+
+
+        # Pros and cons about second method:
+        # Pros: No need to call Google Maps API, faster, so much faster. Google API takes time for all the rows of carparks
+        # Cons #1: Inaccurate calculation of actual distance, 3D distance not taken into account, if carpark is on a hill, it will ignore the altitude
+        # Cons #2: Ignoring un-traversable routes, if carpark is opposite a river, it will ignore the river
+
+        # Method 2: Use formula to calculate distance based on x and y coordinates
         # Get all carparks locations
         records = CarParkInfo.get_all()
 
@@ -366,21 +421,5 @@ def create_app():
     # Create all required tables
     with app.app_context():
         db.create_all()
-
-    # time_range = ("2021-03-01T07:00", "2021-03-02T07:00")
-    # print(short_term_parking_HDB_car(time_range, "ACB", True))
-    # print(short_term_parking_HDB_car(time_range, "ACB", False))
-    #
-    # time_range = ("2021-03-01T07:00", "2021-03-02T07:00")
-    # print(short_term_parking_HDB_motorbike(time_range))
-    #
-    # time_range = ("2021-03-01T07:00", "2021-03-02T07:00")
-    # print(short_term_parking_HDB_heavy(time_range, True))
-
-    # xy_coords = (1.3599598294961113, 103.93624551183646)
-    # sorted_carparks = get_top_carparks(xy_coords[0], xy_coords[1], 5)
-    # for key, val in sorted_carparks.items():
-    #     print(key)
-    #     print(CarParkInfo.get(key).address)
 
     return app
