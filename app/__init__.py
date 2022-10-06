@@ -4,8 +4,6 @@ from datetime import datetime, timedelta, time
 import math
 from flask_apscheduler import APScheduler
 from geopy import distance
-import requests
-import json
 
 db = SQLAlchemy()
 
@@ -421,5 +419,7 @@ def create_app():
     # Create all required tables
     with app.app_context():
         db.create_all()
+        CarParkInfo.update_table()
+        # CarParkAvailability.update_table()
 
     return app

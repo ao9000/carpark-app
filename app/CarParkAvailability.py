@@ -1,8 +1,7 @@
 from app import db
-import requests
-import json
 from datetime import datetime
 from sqlalchemy import exc
+from app.api import get_public_carparks_availability
 
 
 class CarParkAvailability(db.Model):
@@ -27,25 +26,21 @@ class CarParkAvailability(db.Model):
 
     @staticmethod
     def update_table():
-        API_LINK = "https://api.data.gov.sg/v1/transport/carpark-availability"
+        carpark_availability = get_public_carparks_availability()
 
-        response = requests.get(API_LINK)
-        if response.status_code == 200:
-            carpark_availability = json.loads(response.text)
-
-            for index, record in enumerate(carpark_availability['items'][0]['carpark_data'], start=1):
-                print(f"CarParkAvailability: Processing record {index}/{len(carpark_availability['items'][0]['carpark_data'])}")
-                # Create CarParkAvailability object
-                new_record = CarParkAvailability(id=f"{record['carpark_number']} {record['update_datetime']}",
-                                                 carpark_number=record['carpark_number'],
-                                                 lots_available=record['carpark_info'][0]['lots_available'],
-                                                 total_lots=record['carpark_info'][0]['total_lots'],
-                                                 timestamp=datetime.strptime(record['update_datetime'], "%Y-%m-%dT%H:%M:%S"))
-                # Check if record is already in database
-                # Try to save the record
-                try:
-                    new_record.save()
-                except exc.IntegrityError as e:
-                    # Duplicate record exists, rollback and move on
-                    # Duplicated record is confirmed to be the same, therefore no need check
-                    db.session.rollback()
+        for index, record in enumerate(carpark_availability['items'][0]['carpark_data'], start=1):
+            print(f"CarParkAvailability: Processing record {index}/{len(carpark_availability['items'][0]['carpark_data'])}")
+            # Create CarParkAvailability object
+            new_record = CarParkAvailability(id=f"{record['carpark_number']} {record['update_datetime']}",
+                                             carpark_number=record['carpark_number'],
+                                             lots_available=record['carpark_info'][0]['lots_available'],
+                                             total_lots=record['carpark_info'][0]['total_lots'],
+                                             timestamp=datetime.strptime(record['update_datetime'], "%Y-%m-%dT%H:%M:%S"))
+            # Check if record is already in database
+            # Try to save the record
+            try:
+                new_record.save()
+            except exc.IntegrityError as e:
+                # Duplicate record exists, rollback and move on
+                # Duplicated record is confirmed to be the same, therefore no need check
+                db.session.rollback()

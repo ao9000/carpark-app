@@ -1,7 +1,6 @@
 from app import db
-import requests
-import json
 from sqlalchemy import exc
+from app.api import get_public_carparks_info, convert_coords_3414_to_4326, get_private_carpark_fare, get_coords_from_address_sg
 
 
 class CarParkInfo(db.Model):
@@ -27,32 +26,26 @@ class CarParkInfo(db.Model):
     }
 
     # CarParkInfo Gov.sg API columns
-    carpark_number = db.Column(db.String(4), primary_key=True)
-    address = db.Column(db.String(255), nullable=False)
-    x_coord_EPSG3414 = db.Column(db.Float, nullable=False)
-    y_coord_EPSG3414 = db.Column(db.Float, nullable=False)
-    x_coord_WGS84 = db.Column(db.Float, nullable=False)
-    y_coord_WGS84 = db.Column(db.Float, nullable=False)
-    carpark_type = db.Column(db.String(50), nullable=False)
-    electronic_parking_system = db.Column(db.Boolean, nullable=False)
-    short_term_parking = db.Column(db.String(255), nullable=False)
+    carpark_number = db.Column(db.String(10), primary_key=True)
+    address = db.Column(db.String(255), nullable=True)
+    x_coord_EPSG3414 = db.Column(db.Float, nullable=True)
+    y_coord_EPSG3414 = db.Column(db.Float, nullable=True)
+    x_coord_WGS84 = db.Column(db.Float, nullable=True)
+    y_coord_WGS84 = db.Column(db.Float, nullable=True)
+    carpark_type = db.Column(db.String(50), nullable=True)
+    electronic_parking_system = db.Column(db.Boolean, nullable=True)
+    short_term_parking = db.Column(db.String(255), nullable=True)
     free_parking = db.Column(db.String(255), nullable=True)
-    night_parking = db.Column(db.Boolean, nullable=False)
-    carpark_deck_number = db.Column(db.Integer, nullable=False)
+    night_parking = db.Column(db.Boolean, nullable=True)
+    carpark_deck_number = db.Column(db.Integer, nullable=True)
     gantry_height = db.Column(db.Float(255), nullable=True)
-    carpark_basement = db.Column(db.Boolean, nullable=False)
+    carpark_basement = db.Column(db.Boolean, nullable=True)
     # Relationship to CarParkAvailability
     avabilities = db.relationship('CarParkAvailability', backref='CarParkInfo', lazy=True)
 
     # Additional tables
     # Differentiate from public and private carparks
-    public_carpark = db.Column(db.Boolean, nullable=False)
-
-    # Parking fares for calculations
-    # Fares are per half hour
-    short_term_parking_car_fare = db.Column(db.Float, nullable=True)
-    short_term_parking_motorbike_fare = db.Column(db.Float, nullable=True)
-    short_term_parking_heavy_fare = db.Column(db.Float, nullable=True)
+    public_carpark = db.Column(db.Boolean, nullable=True)
 
     def __eq__(self, other_instance):
         a = self.__dict__
@@ -87,16 +80,6 @@ class CarParkInfo(db.Model):
         return CarParkInfo.CENTRAL_CARPARK_NUMBERS
 
     @staticmethod
-    def convert_coords_3414_to_4326(latitude, longitude):
-        API_LINK = "https://developers.onemap.sg/commonapi/convert/3414to4326"
-        params = {'X': latitude, 'Y': longitude}
-        response = requests.get(API_LINK, params=params)
-
-        if response.status_code == 200:
-            data = json.loads(response.text)
-            return float(data['latitude']), float(data['longitude'])
-
-    @staticmethod
     def get(carpark_number):
         return CarParkInfo.query.filter_by(carpark_number=carpark_number).first()
 
@@ -112,47 +95,75 @@ class CarParkInfo(db.Model):
 
     @staticmethod
     def update_table():
-        API_LINK = "https://data.gov.sg/api/action/datastore_search?resource_id=139a3035-e624-4f56-b63f-89ae28d4ae4c&limit=3000"
+        # Public carparks
+        public_carpark_info = get_public_carparks_info()
 
-        response = requests.get(API_LINK)
-        if response.status_code == 200:
-            carpark_info = json.loads(response.text)
+        for index, record in enumerate(public_carpark_info['result']['records'], start=1):
+            print(f"CarParkInfo: Processing public carpark ecord {index}/{len(public_carpark_info['result']['records'])}")
+            # Create CarParkInfo Object
+            # Convert the coordinates to WGS84
+            wgs84_coords = convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
 
-            for index, record in enumerate(carpark_info['result']['records'], start=1):
-                print(f"CarParkInfo: Processing record {index}/{len(carpark_info['result']['records'])}")
-                # Create CarParkInfo Object
-                # Convert the coordinates to WGS84
-                wgs84_coords = CarParkInfo.convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
+            # Record does not exist
+            new_record = CarParkInfo(carpark_number=record['car_park_no'],
+                                     address=record['address'],
+                                     x_coord_EPSG3414=record['x_coord'],
+                                     y_coord_EPSG3414=record['y_coord'],
+                                     x_coord_WGS84=wgs84_coords[0],
+                                     y_coord_WGS84=wgs84_coords[1],
+                                     carpark_type=record['car_park_type'],
+                                     electronic_parking_system=True if record['type_of_parking_system'] == "ELECTRONIC PARKING" else False,
+                                     short_term_parking=record['short_term_parking'],
+                                     free_parking=record['free_parking'],
+                                     night_parking=True if record['night_parking'] == "YES" else False,
+                                     carpark_deck_number=record['car_park_decks'],
+                                     gantry_height=record['gantry_height'],
+                                     carpark_basement=True if record['car_park_basement'] == "Y" else False,
 
-                # Record does not exist
-                new_record = CarParkInfo(carpark_number=record['car_park_no'],
-                                         address=record['address'],
-                                         x_coord_EPSG3414=record['x_coord'],
-                                         y_coord_EPSG3414=record['y_coord'],
-                                         x_coord_WGS84=wgs84_coords[0],
-                                         y_coord_WGS84=wgs84_coords[1],
-                                         carpark_type=record['car_park_type'],
-                                         electronic_parking_system=True if record['type_of_parking_system'] == "ELECTRONIC PARKING" else False,
-                                         short_term_parking=record['short_term_parking'],
-                                         free_parking=record['free_parking'],
-                                         night_parking=True if record['night_parking'] == "YES" else False,
-                                         carpark_deck_number=record['car_park_decks'],
-                                         gantry_height=record['gantry_height'],
-                                         carpark_basement=True if record['car_park_basement'] == "Y" else False,
+                                     # Additional columns
+                                     public_carpark=True
+                                     )
 
-                                         # Additional columns
-                                         public_carpark=True
-                                         )
+            # Try to insert into db
+            try:
+                new_record.save()
+            except exc.IntegrityError as e:
+                # Duplicated record, check if the existing record is the same
+                # Rollback first
+                db.session.rollback()
 
+                # Check if record is different
+                if (existing_record := CarParkInfo.get(record['car_park_no'])) != new_record:
+                    # Record is different, Update record. Else do nothing
+                    CarParkInfo.update(existing_record, new_record)
+
+        # Private carparks
+        private_carpark_info = get_private_carpark_fare()
+
+        for index, record in enumerate(private_carpark_info['result']['records'], start=1):
+            print(f"CarParkInfo: Processing private carpark record {index}/{len(private_carpark_info['result']['records'])}")
+
+            # Retrieve the coordinates from the address using Google Maps API
+            data = get_coords_from_address_sg(record['carpark'])
+
+            # Create CarParkInfo Object
+            # Required to fabricate some values
+            new_record = CarParkInfo(carpark_number=f"PV{index}",
+                                     address=f"{record['carpark']}, {data['results'][0]['formatted_address']}",
+                                     x_coord_WGS84=data['results'][0]['geometry']['location']['lat'],
+                                     y_coord_WGS84=data['results'][0]['geometry']['location']['lng'],
+                                     public_carpark=False
+                                     )
+
+            try:
                 # Try to insert into db
-                try:
-                    new_record.save()
-                except exc.IntegrityError as e:
-                    # Duplicated record, check if the existing record is the same
-                    # Rollback first
-                    db.session.rollback()
+                new_record.save()
+            except exc.IntegrityError as e:
+                # Duplicated record, check if the existing record is the same
+                # Rollback first
+                db.session.rollback()
 
-                    # Check if record is different
-                    if (existing_record := CarParkInfo.get(record['car_park_no'])) != new_record:
-                        # Record is different, Update record. Else do nothing
-                        CarParkInfo.update(existing_record, new_record)
+                # Check if record is different
+                if (existing_record := CarParkInfo.get(record['car_park_no'])) != new_record:
+                    # Record is different, Update record. Else do nothing
+                    CarParkInfo.update(existing_record, new_record)
