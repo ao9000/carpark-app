@@ -189,26 +189,26 @@ def create_app():
 
         return total_cost
 
-    def long_term_parking_family_season_parking(carpark_number, vehicle_type):
-        # Source: https://www.hdb.gov.sg/car-parks/season-parking/family-season-parking-fsp/charges
-
-        # Get type of carpark from carpark number
-        carpark_type = CarParkInfo.get(carpark_number).carpark_type
-
-        # Normalize vehicle type
-        match carpark_type:
-            case 'COVERED CAR PARK' | 'BASEMENT CAR PARK' | 'MECHANISED CAR PARK' | 'MULTI-STOREY CAR PARK':
-                carpark_type = "sheltered"
-            case 'MECHANISED AND SURFACE CAR PARK' | 'SURFACE CAR PARK' | 'SURFACE/MULTI-STOREY CAR PARK':
-                carpark_type = "surface"
-
-        fare_dict = {
-            'car': {'surface': 40, 'sheltered': 55, 'precinct': 47.50},
-            'motorcycle': {'surface': 7.50, 'sheltered': 8.50, 'precinct': 8.50},
-            'commercial': {'surface': 92.50, 'sheltered': 92.50, 'precinct': 92.50}
-        }
-
-        return fare_dict[vehicle_type][carpark_type]
+    # def long_term_parking_family_season_parking(carpark_number, vehicle_type):
+    #     # Source: https://www.hdb.gov.sg/car-parks/season-parking/family-season-parking-fsp/charges
+    #
+    #     # Get type of carpark from carpark number
+    #     carpark_type = CarParkInfo.get(carpark_number).carpark_type
+    #
+    #     # Normalize vehicle type
+    #     match carpark_type:
+    #         case 'COVERED CAR PARK' | 'BASEMENT CAR PARK' | 'MECHANISED CAR PARK' | 'MULTI-STOREY CAR PARK':
+    #             carpark_type = "sheltered"
+    #         case 'MECHANISED AND SURFACE CAR PARK' | 'SURFACE CAR PARK' | 'SURFACE/MULTI-STOREY CAR PARK':
+    #             carpark_type = "surface"
+    #
+    #     fare_dict = {
+    #         'car': {'surface': 40, 'sheltered': 55, 'precinct': 47.50},
+    #         'motorcycle': {'surface': 7.50, 'sheltered': 8.50, 'precinct': 8.50},
+    #         'commercial': {'surface': 92.50, 'sheltered': 92.50, 'precinct': 92.50}
+    #     }
+    #
+    #     return fare_dict[vehicle_type][carpark_type]
 
     def parking_fare_calculation(short_or_long_term, from_time_to_time, **kwargs):
         # Unpack **kwargs
