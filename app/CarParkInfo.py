@@ -49,9 +49,9 @@ class CarParkInfo(db.Model):
     public_carpark = db.Column(db.Boolean, nullable=True)
 
     # Private carpark fare
-    pv_weekday_fare = db.Column(db.String(255), nullable=True)
-    pv_saturday_fare = db.Column(db.String(255), nullable=True)
-    pv_sunday_ph_fare = db.Column(db.String(255), nullable=True)
+    pv_weekday_parking_fare = db.Column(db.String(255), nullable=True)
+    pv_saturday_parking_fare = db.Column(db.String(255), nullable=True)
+    pv_sunday_ph_parking_fare = db.Column(db.String(255), nullable=True)
     pv_weekday_entry_fare = db.Column(db.String(255), nullable=True)
     pv_weekend_entry_fare = db.Column(db.String(255), nullable=True)
 
@@ -139,6 +139,14 @@ class CarParkInfo(db.Model):
         return CarParkInfo.query.filter_by(carpark_number=carpark_number).first()
 
     @staticmethod
+    def get_all_public():
+        return CarParkInfo.query.filter_by(public_carpark=True).all()
+
+    @staticmethod
+    def get_all_private():
+        return CarParkInfo.query.filter_by(public_carpark=False).all()
+
+    @staticmethod
     def get_all():
         return CarParkInfo.query.all()
 
@@ -216,9 +224,9 @@ class CarParkInfo(db.Model):
                                      y_coord_WGS84=data['results'][0]['geometry']['location']['lng'],
                                      pv_weekday_entry_fare=weekday_entry_fare,
                                      pv_weekend_entry_fare=weekend_entry_fare,
-                                     pv_weekday_fare=weekday_parking_fare,
-                                     pv_saturday_fare=saturday_parking_fare,
-                                     pv_sunday_ph_fare=sunday_ph_parking_fare,
+                                     pv_weekday_parking_fare=weekday_parking_fare,
+                                     pv_saturday_parking_fare=saturday_parking_fare,
+                                     pv_sunday_ph_parking_fare=sunday_ph_parking_fare,
                                      public_carpark=False
                                      )
 

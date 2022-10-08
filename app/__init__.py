@@ -227,7 +227,7 @@ def create_app():
 
         return func_mapper_dict[short_or_long_term]
 
-    def get_nearest_carparks(latitude, longitude, limit=5):
+    def get_nearest_carparks(latitude, longitude, limit=5, public_private='all'):
         # 2 ways to get top carpark
         # 1. Get top matches via Google Maps API
         # 2. Get top matches via distance calculation in xy_coords, Distance squared = x squared + y squared
@@ -287,7 +287,12 @@ def create_app():
 
         # Method 2: Use formula to calculate distance based on x and y coordinates
         # Get all carparks locations
-        records = CarParkInfo.get_all()
+        if public_private == 'all':
+            records = CarParkInfo.get_all()
+        elif public_private == 'public':
+            records = CarParkInfo.get_all_public()
+        else:
+            records = CarParkInfo.get_all_private()
 
         # Calculate distance
         distance_dict = {}
@@ -299,8 +304,8 @@ def create_app():
 
         return dict(list(sorted_distance_dict.items())[:limit])
 
-    @app.route("/carparks", methods=["GET"])
-    def return_top_carparks():
+    @app.route("/carparks/top/<string:public_private>", methods=["GET"])
+    def return_top_carparks(public_private):
         # Carpark finding params
         x_coord = request.args.get('x_coord', default=None, type=float)
         y_coord = request.args.get('y_coord', default=None, type=float)
@@ -311,6 +316,9 @@ def create_app():
         datetime_to = request.args.get('datetime_to', default=None, type=str)
 
         # Integrity check for carpark finding params
+        if public_private.lower() not in ['public', 'private', 'all']:
+            return jsonify({"error": "public_private parameter must be public, private or all"}), 400
+
         # Check if both x_coord and y_coord are present
         if not x_coord or not y_coord:
             return jsonify({'error': 'Please provide both x_coord and y_coord'}), 400
@@ -321,7 +329,7 @@ def create_app():
 
         # After performing checks, get top carparks results
         # Get the nearest carparks dict
-        nearest_carparks = get_nearest_carparks(x_coord, y_coord, limit)
+        nearest_carparks = get_nearest_carparks(x_coord, y_coord, limit, public_private)
 
         # Integrity check fare calculation params
         if datetime_from and datetime_to:
@@ -370,15 +378,16 @@ def create_app():
             # Combine data into response
             response_dict[key] = {
                 'distance': value,
+                **carpark_info.to_dict(),
+                'total_lots': carpark_availability[0].total_lots if carpark_availability else None,
+                'availability': {item.timestamp.strftime("%m/%d/%Y, %H:%M:%S"): item.lots_available for item in carpark_availability},
                 'short_term_parking_fare': {
+                    # Public carparks
                     'car': CarParkInfo.get_short_term_carpark_rates()['car']['central'] if key in CarParkInfo.get_central_carpark_numbers() else CarParkInfo.get_short_term_carpark_rates()['car']['non_central'],
                     'motorbike': CarParkInfo.get_short_term_carpark_rates()['motorbike'],
                     'heavy': CarParkInfo.get_short_term_carpark_rates()['heavy']
-                },
-                'parking_fare': parking_fare[key] if parking_fare else None,
-                **carpark_info.to_dict(),
-                'total_lots': carpark_availability[0].total_lots if carpark_availability else None,
-                'availability': {item.timestamp.strftime("%m/%d/%Y, %H:%M:%S"): item.lots_available for item in carpark_availability}
+                } if not key.startswith('PV') else {},
+                'parking_fare': parking_fare[key] if parking_fare else None
             }
 
         return jsonify(response_dict), 200
