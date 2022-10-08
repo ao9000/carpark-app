@@ -7,7 +7,7 @@ from app.api import get_public_carparks_availability
 class CarParkAvailability(db.Model):
     __tablename__ = 'CarParkAvailability'
     id = db.Column(db.String(22), primary_key=True)
-    carpark_number = db.Column(db.String(4), db.ForeignKey('CarParkInfo.carpark_number'))
+    carpark_number = db.Column(db.String(4), db.ForeignKey('PublicCarParkInfo.carpark_number'))
     lots_available = db.Column(db.Integer, nullable=False)
     total_lots = db.Column(db.Integer, nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
