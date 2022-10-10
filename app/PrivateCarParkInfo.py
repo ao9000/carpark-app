@@ -127,11 +127,11 @@ class PrivateCarParkInfo(db.Model):
                                             address=f"{record['carpark']}, {data['results'][0]['formatted_address']}",
                                             x_coord_WGS84=data['results'][0]['geometry']['location']['lat'],
                                             y_coord_WGS84=data['results'][0]['geometry']['location']['lng'],
-                                            weekday_entry_fare=weekday_entry_fare,
-                                            weekend_entry_fare=weekend_entry_fare,
-                                            weekday_parking_fare=weekday_parking_fare,
-                                            saturday_parking_fare=saturday_parking_fare,
-                                            sunday_ph_parking_fare=sunday_ph_parking_fare
+                                            weekday_entry_fare=weekday_entry_fare if weekday_entry_fare else weekday_entry_fare or weekend_entry_fare,
+                                            weekend_entry_fare=weekend_entry_fare if weekend_entry_fare else weekday_entry_fare or weekend_entry_fare,
+                                            weekday_parking_fare=weekday_parking_fare if weekday_parking_fare else weekday_parking_fare or saturday_parking_fare or sunday_ph_parking_fare,
+                                            saturday_parking_fare=saturday_parking_fare if saturday_parking_fare else weekday_parking_fare or saturday_parking_fare or sunday_ph_parking_fare,
+                                            sunday_ph_parking_fare=sunday_ph_parking_fare if sunday_ph_parking_fare else weekday_parking_fare or saturday_parking_fare or sunday_ph_parking_fare
                                             )
 
             try:

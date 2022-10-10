@@ -213,7 +213,61 @@ def create_app():
     #
     #     return fare_dict[vehicle_type][carpark_type]
 
-    def parking_fare_calculation(short_or_long_term, from_time_to_time, **kwargs):
+    def pv_parking_fare(from_time_to_time, carpark_number):
+        # All fares are standardised to rate per half an hour
+        # Unpack
+        from_time, to_time = from_time_to_time
+
+        # Get total time in minutes/half-hours first
+        total_minutes = (to_time - from_time).total_seconds() / 60
+
+        # Init cost
+        total_cost = 0
+
+        # Get entry fare
+        # Get the day of entry
+        # Return the day of the week as an integer, where Monday is 0 and Sunday is 6
+        if from_time.weekday() in [5, 6]:
+            # Saturday and Sunday
+            total_cost += float(entry_fare) if (entry_fare := PrivateCarParkInfo.get(carpark_number).weekend_entry_fare) else 0
+        else:
+            # Weekdays
+            total_cost += float(entry_fare) if (entry_fare := PrivateCarParkInfo.get(carpark_number).weekday_entry_fare) else 0
+
+        # Get fare rate
+        # Get half an hour fare
+        counter = 0
+        saturday_parking_counter_minute = 0
+        sunday_parking_counter_minute = 0
+        while counter < total_minutes:
+            datetime_now = from_time + timedelta(minutes=counter)
+            if datetime_now.weekday() == 6:
+                # Sunday
+                sunday_parking_counter_minute += 1
+            elif datetime_now.weekday() == 5:
+                # Saturday
+                saturday_parking_counter_minute += 1
+            counter += 1
+
+        # Get weekday parking counter
+        weekday_parking_counter_minute = total_minutes - saturday_parking_counter_minute - sunday_parking_counter_minute
+
+        # Calculate total cost
+        # Pro-rate every minute
+        try:
+            # Add weekday parking cost
+            total_cost += round(weekday_parking_counter_minute * (float(PrivateCarParkInfo.get(carpark_number).weekday_parking_fare) / 30), 2)
+            # Add Saturday parking cost
+            total_cost += round(saturday_parking_counter_minute * (float(PrivateCarParkInfo.get(carpark_number).saturday_parking_fare) / 30), 2)
+            # Add Sunday parking cost
+            total_cost += round(sunday_parking_counter_minute * (float(PrivateCarParkInfo.get(carpark_number).sunday_ph_parking_fare) / 30), 2)
+        except TypeError:
+            # NoneType for base parking fare
+            pass
+
+        return total_cost
+
+    def pb_parking_fare_calculation(short_or_long_term, from_time_to_time, **kwargs):
         # Unpack **kwargs
         carpark_number = kwargs['carpark_number']
 
@@ -226,6 +280,7 @@ def create_app():
                 'motorbike': short_term_parking_HDB_motorbike(from_time_to_time),
                 'heavy': short_term_parking_HDB_heavy(from_time_to_time, eps),
             }
+
         }
 
         return func_mapper_dict[short_or_long_term]
@@ -361,9 +416,14 @@ def create_app():
             # Check vehicle type
             parking_fare = {}
             for carpark_number in nearest_carparks.keys():
-                parking_fare[carpark_number] = parking_fare_calculation(short_or_long_term='short_term',
-                                                                        from_time_to_time=(from_time, to_time),
-                                                                        carpark_number=carpark_number)
+                if carpark_number.startswith('PV'):
+                    # Private carpark
+                    parking_fare[carpark_number] = pv_parking_fare((from_time, to_time), carpark_number)
+                else:
+                    # Public carpark
+                    parking_fare[carpark_number] = pb_parking_fare_calculation(short_or_long_term='short_term',
+                                                                               from_time_to_time=(from_time, to_time),
+                                                                               carpark_number=carpark_number)
 
         elif datetime_from or datetime_to:
             # One of datetime_from or datetime_to is present
