@@ -99,14 +99,15 @@ class PublicCarParkInfo(db.Model):
             # Create CarParkInfo Object
             # Convert the coordinates to WGS84
             wgs84_coords = convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
+            wgs84_lat, wgs84_long = float(wgs84_coords['latitude']), float(wgs84_coords['longitude'])
 
             # Record does not exist
             new_record = PublicCarParkInfo(carpark_number=record['car_park_no'],
                                            address=record['address'],
                                            x_coord_EPSG3414=record['x_coord'],
                                            y_coord_EPSG3414=record['y_coord'],
-                                           x_coord_WGS84=wgs84_coords[0],
-                                           y_coord_WGS84=wgs84_coords[1],
+                                           x_coord_WGS84=wgs84_lat,
+                                           y_coord_WGS84=wgs84_long,
                                            carpark_type=record['car_park_type'],
                                            electronic_parking_system=True if record['type_of_parking_system'] == "ELECTRONIC PARKING" else False,
                                            short_term_parking=record['short_term_parking'],

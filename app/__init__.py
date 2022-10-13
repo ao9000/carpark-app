@@ -533,8 +533,8 @@ def create_app():
     # Create all required tables
     with app.app_context():
         db.create_all()
-        # PublicCarParkInfo.update_table()
-        # PrivateCarParkInfo.update_table()
-        # CarParkAvailability.update_table()
+        PublicCarParkInfo.update_table()
+        PrivateCarParkInfo.update_table()
+        CarParkAvailability.update_table()
 
     return app

@@ -12,11 +12,11 @@ class PrivateCarParkInfo(db.Model):
     address = db.Column(db.String(255), nullable=True)
     x_coord_WGS84 = db.Column(db.Float, nullable=True)
     y_coord_WGS84 = db.Column(db.Float, nullable=True)
-    weekday_parking_fare = db.Column(db.String(255), nullable=True)
-    saturday_parking_fare = db.Column(db.String(255), nullable=True)
-    sunday_ph_parking_fare = db.Column(db.String(255), nullable=True)
-    weekday_entry_fare = db.Column(db.String(255), nullable=True)
-    weekend_entry_fare = db.Column(db.String(255), nullable=True)
+    weekday_parking_fare = db.Column(db.Float, nullable=True)
+    saturday_parking_fare = db.Column(db.Float, nullable=True)
+    sunday_ph_parking_fare = db.Column(db.Float, nullable=True)
+    weekday_entry_fare = db.Column(db.Float, nullable=True)
+    weekend_entry_fare = db.Column(db.Float, nullable=True)
 
     def __eq__(self, other_instance):
         a = self.__dict__
