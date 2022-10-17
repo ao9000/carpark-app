@@ -1,9 +1,10 @@
 from app import db
 from sqlalchemy import exc
 from app.api import get_public_carparks_info, convert_coords_3414_to_4326
+from app.CarParkInfo import CarParkInfo
 
 
-class PublicCarParkInfo(db.Model):
+class PublicCarParkInfo(CarParkInfo):
     __tablename__ = 'PublicCarParkInfo'
 
     # Constants
@@ -26,46 +27,18 @@ class PublicCarParkInfo(db.Model):
     }
 
     # CarParkInfo Gov.sg API columns
-    carpark_number = db.Column(db.String(5), primary_key=True)
-    address = db.Column(db.String(255), nullable=True)
-    x_coord_EPSG3414 = db.Column(db.Float, nullable=True)
-    y_coord_EPSG3414 = db.Column(db.Float, nullable=True)
-    x_coord_WGS84 = db.Column(db.Float, nullable=True)
-    y_coord_WGS84 = db.Column(db.Float, nullable=True)
-    carpark_type = db.Column(db.String(50), nullable=True)
-    electronic_parking_system = db.Column(db.Boolean, nullable=True)
-    short_term_parking = db.Column(db.String(255), nullable=True)
-    free_parking = db.Column(db.String(255), nullable=True)
-    night_parking = db.Column(db.Boolean, nullable=True)
-    carpark_deck_number = db.Column(db.Integer, nullable=True)
-    gantry_height = db.Column(db.Float(255), nullable=True)
-    carpark_basement = db.Column(db.Boolean, nullable=True)
+    x_coord_EPSG3414 = db.Column(db.Float, nullable=False)
+    y_coord_EPSG3414 = db.Column(db.Float, nullable=False)
+    carpark_type = db.Column(db.String(50), nullable=False)
+    electronic_parking_system = db.Column(db.Boolean, nullable=False)
+    short_term_parking = db.Column(db.String(255), nullable=False)
+    free_parking = db.Column(db.String(255), nullable=False)
+    night_parking = db.Column(db.Boolean, nullable=False)
+    carpark_deck_number = db.Column(db.Integer, nullable=False)
+    gantry_height = db.Column(db.Float(255), nullable=False)
+    carpark_basement = db.Column(db.Boolean, nullable=False)
     # Relationship to CarParkAvailability
     avabilities = db.relationship('CarParkAvailability', backref='PublicCarParkInfo', lazy=True)
-
-    def __eq__(self, other_instance):
-        a = self.__dict__
-        b = other_instance.__dict__
-
-        for key, value in a.items():
-            if key.startswith('_sa'):
-                continue
-            if isinstance(value, str):
-                if value != b[key]:
-                    return False
-        return True
-
-    def to_dict(self):
-        obj = {}
-        for key, value in self.__dict__.items():
-            if not str(key).startswith('_sa'):
-                obj[key] = value
-
-        return obj
-
-    def save(self):
-        db.session.add(self)
-        db.session.commit()
 
     @staticmethod
     def get_short_term_carpark_rates():
@@ -74,20 +47,6 @@ class PublicCarParkInfo(db.Model):
     @staticmethod
     def get_central_carpark_numbers():
         return PublicCarParkInfo.CENTRAL_CARPARK_NUMBERS
-
-    @staticmethod
-    def get(carpark_number):
-        return PublicCarParkInfo.query.filter_by(carpark_number=carpark_number).first()
-
-    @staticmethod
-    def get_all():
-        return PublicCarParkInfo.query.all()
-
-    @staticmethod
-    def update(existing_record, new_record):
-        existing_record.__dict__ = new_record.__dict__
-
-        db.session.commit()
 
     @staticmethod
     def update_table():
