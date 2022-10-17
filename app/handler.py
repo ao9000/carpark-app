@@ -1,6 +1,7 @@
 import functools
 import json
 import time
+from app.exceptions import APIUnavailableError
 
 
 # API handlers
@@ -15,7 +16,7 @@ def retry_API(num=3):
                 else:
                     if i == (num-1):
                         # Last retry
-                        raise Exception(f"API unavailable, link {request.url}")
+                        raise APIUnavailableError(func.__name__, request.status_code)
                     print(f"[{i+1}/{num}] API error: {request.status_code}, retrying after 3 seconds...")
                     time.sleep(3)
 

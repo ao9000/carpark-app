@@ -9,9 +9,9 @@ db = SQLAlchemy()
 
 
 def create_app():
-    from app.PublicCarParkInfo import PublicCarParkInfo
-    from app.PrivateCarParkInfo import PrivateCarParkInfo
-    from app.CarParkAvailability import CarParkAvailability
+    from app.models.PublicCarParkInfo import PublicCarParkInfo
+    from app.models.PrivateCarParkInfo import PrivateCarParkInfo
+    from app.models.CarParkAvailability import CarParkAvailability
 
     # Config
     app = Flask(__name__)

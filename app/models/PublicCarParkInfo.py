@@ -1,7 +1,7 @@
 from app import db
 from sqlalchemy import exc
 from app.api import get_public_carparks_info, convert_coords_3414_to_4326
-from app.CarParkInfo import CarParkInfo
+from app.models.CarParkInfo import CarParkInfo
 
 
 class PublicCarParkInfo(CarParkInfo):
@@ -39,6 +39,10 @@ class PublicCarParkInfo(CarParkInfo):
     carpark_basement = db.Column(db.Boolean, nullable=False)
     # Relationship to CarParkAvailability
     avabilities = db.relationship('CarParkAvailability', backref='PublicCarParkInfo', lazy=True)
+
+    @staticmethod
+    def get_all():
+        return PublicCarParkInfo.query.all()
 
     @staticmethod
     def get_short_term_carpark_rates():

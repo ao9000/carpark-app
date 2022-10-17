@@ -5,9 +5,9 @@ class CarParkInfo(db.Model):
     __abstract__ = True
 
     carpark_number = db.Column(db.String(10), primary_key=True)
-    address = db.Column(db.String(255), nullable=True)
-    x_coord_WGS84 = db.Column(db.Float, nullable=True)
-    y_coord_WGS84 = db.Column(db.Float, nullable=True)
+    address = db.Column(db.String(255), nullable=False)
+    x_coord_WGS84 = db.Column(db.Float, nullable=False)
+    y_coord_WGS84 = db.Column(db.Float, nullable=False)
 
     def __eq__(self, other_instance):
         a = self.__dict__
@@ -32,14 +32,6 @@ class CarParkInfo(db.Model):
     def save(self):
         db.session.add(self)
         db.session.commit()
-
-    @staticmethod
-    def get(carpark_number):
-        return CarParkInfo.query.filter_by(carpark_number=carpark_number).first()
-
-    @staticmethod
-    def get_all():
-        return CarParkInfo.query.all()
 
     @staticmethod
     def update(existing_record, new_record):

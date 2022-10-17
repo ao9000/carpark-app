@@ -1,7 +1,7 @@
 from app import db
 from sqlalchemy import exc
 from app.api import get_private_carpark_fare, get_coords_from_address_sg
-from app.CarParkInfo import CarParkInfo
+from app.models.CarParkInfo import CarParkInfo
 import re
 
 
@@ -61,6 +61,15 @@ class PrivateCarParkInfo(CarParkInfo):
                 return float(capture.group(1))
         else:
             return None
+
+
+    @staticmethod
+    def get(carpark_number):
+        return PrivateCarParkInfo.query.filter_by(carpark_number=carpark_number).first()
+
+    @staticmethod
+    def get_all():
+        return PrivateCarParkInfo.query.all()
 
     @staticmethod
     def update_table():
