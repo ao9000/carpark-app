@@ -10,34 +10,17 @@ class CarParkInfo(db.Model):
     y_coord_WGS84 = db.Column(db.Float, nullable=False)
 
     def __eq__(self, other_instance):
-        a = self.__dict__
-        b = other_instance.__dict__
-
-        for key, value in a.items():
-            if key.startswith('_sa'):
-                continue
-            if isinstance(value, str):
-                if value != b[key]:
-                    return False
-        return True
+        pass
 
     def to_dict(self):
-        obj = {}
-        for key, value in self.__dict__.items():
-            if not str(key).startswith('_sa'):
-                obj[key] = value
-
-        return obj
+        pass
 
     def save(self):
-        db.session.add(self)
-        db.session.commit()
+        pass
 
     @staticmethod
     def update(existing_record, new_record):
-        existing_record.__dict__ = new_record.__dict__
-
-        db.session.commit()
+        pass
 
     @staticmethod
     def update_table():

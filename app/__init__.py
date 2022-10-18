@@ -24,7 +24,7 @@ def create_app():
     scheduler.init_app(app)
     scheduler.start()
 
-    @scheduler.task('interval', id='job1', seconds=60*60*24, misfire_grace_time=900)
+    @scheduler.task('interval', id='job1', seconds=60*60*24*7, misfire_grace_time=900)
     def update_carpark_information_db():
         print("Updating both Public & Private CarParkInfo table...")
         with app.app_context():

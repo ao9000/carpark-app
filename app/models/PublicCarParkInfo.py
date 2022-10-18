@@ -27,6 +27,10 @@ class PublicCarParkInfo(CarParkInfo):
     }
 
     # CarParkInfo Gov.sg API columns
+    carpark_number = db.Column(db.String(10), primary_key=True)
+    address = db.Column(db.String(255), nullable=False)
+    x_coord_WGS84 = db.Column(db.Float, nullable=False)
+    y_coord_WGS84 = db.Column(db.Float, nullable=False)
     x_coord_EPSG3414 = db.Column(db.Float, nullable=False)
     y_coord_EPSG3414 = db.Column(db.Float, nullable=False)
     carpark_type = db.Column(db.String(50), nullable=False)
@@ -40,9 +44,29 @@ class PublicCarParkInfo(CarParkInfo):
     # Relationship to CarParkAvailability
     avabilities = db.relationship('CarParkAvailability', backref='PublicCarParkInfo', lazy=True)
 
-    @staticmethod
-    def get_all():
-        return PublicCarParkInfo.query.all()
+    def __eq__(self, other_instance):
+        a = self.__dict__
+        b = other_instance.__dict__
+
+        for key, value in a.items():
+            if key.startswith('_sa'):
+                continue
+            if isinstance(value, str):
+                if value != b[key]:
+                    return False
+        return True
+
+    def to_dict(self):
+        obj = {}
+        for key, value in self.__dict__.items():
+            if not str(key).startswith('_sa'):
+                obj[key] = value
+
+        return obj
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
 
     @staticmethod
     def get_short_term_carpark_rates():
@@ -53,12 +77,26 @@ class PublicCarParkInfo(CarParkInfo):
         return PublicCarParkInfo.CENTRAL_CARPARK_NUMBERS
 
     @staticmethod
+    def get(carpark_number):
+        return PublicCarParkInfo.query.filter_by(carpark_number=carpark_number).first()
+
+    @staticmethod
+    def get_all():
+        return PublicCarParkInfo.query.all()
+
+    @staticmethod
+    def update(existing_record, new_record):
+        existing_record.__dict__ = new_record.__dict__
+
+        db.session.commit()
+
+    @staticmethod
     def update_table():
         # Public carparks
         public_carpark_info = get_public_carparks_info()
 
         for index, record in enumerate(public_carpark_info['result']['records'], start=1):
-            print(f"CarParkInfo: Processing public carpark ecord {index}/{len(public_carpark_info['result']['records'])}")
+            print(f"PublicCarParkInfo: Processing public carpark record {index}/{len(public_carpark_info['result']['records'])}")
             # Create CarParkInfo Object
             # Convert the coordinates to WGS84
             wgs84_coords = convert_coords_3414_to_4326(record['x_coord'], record['y_coord'])
