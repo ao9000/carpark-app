@@ -484,6 +484,54 @@ def create_app():
 
         return jsonify(response_dict), 200
 
+    @app.route('/carparks/id/', methods=['GET'])
+    def return_carpark_by_id():
+        # Carpark id params
+        carpark_id = request.args.get('carpark_id', default=None, type=str)
+
+        if not carpark_id:
+            return jsonify({'error': 'Please provide carpark_id'}), 400
+
+        # Get carpark via carpark id
+        pb_record = PublicCarParkInfo.get(carpark_id)
+        pv_record = PrivateCarParkInfo.get(carpark_id)
+
+        response_dict = {}
+        if pb_record:
+            # Public carpark, add availability and base fares
+            carpark_availability = CarParkAvailability.get_all(pb_record.carpark_number)
+
+            # Combine data into response
+            response_dict[pb_record.carpark_number] = {
+                **pb_record.to_dict(),
+                'total_lots': carpark_availability[0].total_lots if carpark_availability else None,
+                'availability': {item.timestamp.strftime("%m/%d/%Y, %H:%M:%S"): item.lots_available for item in carpark_availability},
+                # Base fare
+                'short_term_parking_fare': {
+                    'car': PublicCarParkInfo.get_short_term_carpark_rates()['car']['central'] if pb_record.carpark_number in PublicCarParkInfo.get_central_carpark_numbers() else PublicCarParkInfo.get_short_term_carpark_rates()['car']['non_central'],
+                    'motorbike': PublicCarParkInfo.get_short_term_carpark_rates()['motorbike'],
+                    'heavy': PublicCarParkInfo.get_short_term_carpark_rates()['heavy']
+                }
+            }
+        elif pv_record:
+            # Private carpark
+            # Combine data into response
+            response_dict[pv_record.carpark_number] = {
+                **pv_record.to_dict(),
+                # Base fare
+                'short_term_parking_fare': {
+                    'weekday_entry_fare': pv_record.weekday_entry_fare,
+                    'weekend_entry_fare': pv_record.weekend_entry_fare,
+                    'weekday_parking_fare': pv_record.weekday_parking_fare,
+                    'saturday_parking_fare': pv_record.saturday_parking_fare,
+                    'sunday_ph_parking_fare': pv_record.sunday_ph_parking_fare
+                }
+            }
+        else:
+            return jsonify({'error': 'Invalid carpark id'}), 404
+
+        return jsonify(response_dict), 200
+
     @app.route("/carparks/all", methods=["GET"])
     def return_all_carparks():
         # Get all carparks
@@ -510,17 +558,17 @@ def create_app():
                 }
             }
 
-        for pb_record in pv_records:
+        for pv_record in pv_records:
             # Combine data into response
-            response_dict[pb_record.carpark_number] = {
-                **pb_record.to_dict(),
+            response_dict[pv_record.carpark_number] = {
+                **pv_record.to_dict(),
                 # Base fare
                 'short_term_parking_fare': {
-                    'weekday_entry_fare': pb_record.weekday_entry_fare,
-                    'weekend_entry_fare': pb_record.weekend_entry_fare,
-                    'weekday_parking_fare': pb_record.weekday_parking_fare,
-                    'saturday_parking_fare': pb_record.saturday_parking_fare,
-                    'sunday_ph_parking_fare': pb_record.sunday_ph_parking_fare
+                    'weekday_entry_fare': pv_record.weekday_entry_fare,
+                    'weekend_entry_fare': pv_record.weekend_entry_fare,
+                    'weekday_parking_fare': pv_record.weekday_parking_fare,
+                    'saturday_parking_fare': pv_record.saturday_parking_fare,
+                    'sunday_ph_parking_fare': pv_record.sunday_ph_parking_fare
                 }
             }
 
