@@ -115,6 +115,9 @@ class PrivateCarParkInfo(CarParkInfo):
             # Retrieve the coordinates from the address using Google Maps API
             data = get_coords_from_address_sg(record['carpark'])
 
+            if not data['results']:
+                continue
+
             # Extract fare for private carparks
             weekday_entry_fare = PrivateCarParkInfo.pv_extract_entry_fare(record['weekdays_rate_1']) or PrivateCarParkInfo.pv_extract_entry_fare(record['weekdays_rate_2'])
             weekend_entry_fare = weekday_entry_fare if "Same as wkdays" in record['saturday_rate'] or "Same as wkdays" in record['sunday_publicholiday_rate'] else PrivateCarParkInfo.pv_extract_entry_fare(record['saturday_rate']) or PrivateCarParkInfo.pv_extract_entry_fare(record['sunday_publicholiday_rate'])
