@@ -484,7 +484,7 @@ def create_app():
 
         return jsonify(response_dict), 200
 
-    @app.route('/carparks/id/', methods=['GET'])
+    @app.route('/carparks/id', methods=['GET'])
     def return_carpark_by_id():
         # Carpark id params
         carpark_id = request.args.get('carpark_id', default=None, type=str)
