@@ -62,7 +62,7 @@ def test_get_carpark_by_id_invalid_id(app_client):
     assert res.status_code == 404
 
 def test_get_carpark_by_id_empty_id(app_client):
-    res = app_client().get(f'/carparks/id?carpark_id= ')
+    res = app_client().get(f'/carparks/id?carpark_id=')
     assert res.status_code == 400
 
 # Get all carpark route testing
